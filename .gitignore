@@ -1,0 +1,18 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Service account key
+key.json
+
+# SSH keys
+*.pem
+*.key
+.ssh/
+
+# Ansible
+*.retry
+
+# OS
+.DS_Store

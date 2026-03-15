@@ -1,0 +1,28 @@
+- name: Install and configure nginx on web servers
+  hosts: webservers
+  become: true
+
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: Copy static site
+      ansible.builtin.copy:
+        src: ../site/index.html
+        dest: /var/www/html/index.html
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Ensure nginx is enabled and started
+      ansible.builtin.systemd:
+        name: nginx
+        enabled: true
+        state: started
