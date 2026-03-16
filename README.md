@@ -209,6 +209,7 @@ Playbooks:
 
 # Структура проекта
 
+```
 netology-diploma
 ├── terraform
 │   ├── main.tf
@@ -229,7 +230,7 @@ netology-diploma
 │   └── index.html
 │
 └── README.md
-
+```
 Terraform запускается с control VM.
 
 Ansible playbooks выполняются с bastion host.
@@ -264,7 +265,7 @@ curl http://elasticsearch.ru-central1.internal:9200
 
 ## Application Load Balancer
 
-![ALB](screenshots/alb.png)
+![ALB](screenshots/ALB.png)
 
 ## Zabbix Dashboard
 
