@@ -1,0 +1,59 @@
+- name: Install Zabbix agent on monitored hosts
+  hosts: webservers,bastionhost
+  become: true
+
+  vars:
+    zabbix_server_ip: "10.10.1.18"
+
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - wget
+          - gnupg
+          - ca-certificates
+        state: present
+        update_cache: true
+
+    - name: Download Zabbix repo package
+      ansible.builtin.get_url:
+        url: https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.0+ubuntu22.04_all.deb
+        dest: /tmp/zabbix-release.deb
+        mode: '0644'
+
+    - name: Install Zabbix repo package
+      ansible.builtin.apt:
+        deb: /tmp/zabbix-release.deb
+
+    - name: Update apt cache after repo install
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install zabbix-agent
+      ansible.builtin.apt:
+        name: zabbix-agent
+        state: present
+
+    - name: Configure Server in zabbix_agentd.conf
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^Server='
+        line: "Server={{ zabbix_server_ip }}"
+
+    - name: Configure ServerActive in zabbix_agentd.conf
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^ServerActive='
+        line: "ServerActive={{ zabbix_server_ip }}"
+
+    - name: Configure Hostname in zabbix_agentd.conf
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^Hostname='
+        line: "Hostname={{ inventory_hostname }}"
+
+    - name: Restart and enable zabbix-agent
+      ansible.builtin.systemd:
+        name: zabbix-agent
+        enabled: true
+        state: restarted

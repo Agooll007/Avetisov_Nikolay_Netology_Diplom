@@ -1,128 +1,295 @@
-# Дипломный проект Netology  
-## Отказоустойчивая инфраструктура сайта в Yandex Cloud
+# Netology DevOps Diploma  
+## Infrastructure deployment in Yandex Cloud
 
-### Архитектура
-
-Инфраструктура построена в Yandex Cloud с использованием:
-
-- Terraform
-- Ansible
-- Application Load Balancer
-- Bastion host
-- NAT Gateway
-
-Схема:
-
-Internet  
-↓  
-Application Load Balancer  
-↓  
-web1 (private VM)  
-web2 (private VM)  
-↓  
-NAT Gateway  
-
-Административный доступ:
-
-Admin → Bastion → Web servers
+Автор: Николай Аветисов
 
 ---
 
-# Terraform
+# Описание проекта
 
-Terraform используется для создания:
+Цель дипломной работы — развернуть инфраструктуру в Yandex Cloud с использованием Terraform и Ansible.
 
-- VPC сети
-- подсетей
-- bastion VM
-- web1 VM
-- web2 VM
-- security groups
-- NAT Gateway
-- Application Load Balancer
+В рамках проекта реализованы:
 
-Файлы Terraform находятся в директории:
-
-terraform/
-
-
----
-
-# Ansible
-
-Ansible используется для конфигурации web серверов.
-
-Playbook устанавливает:
-
-- nginx
-- копирует статический сайт
-
-ansible/
-
-
----
-
-# Web серверы
-
-Созданы две ВМ:
-
-| VM | Zone |
-|----|------|
-| web1 | ru-central1-a |
-| web2 | ru-central1-b |
-
-Параметры:
-
-2 vCPU
-2GB RAM
-10GB HDD
-
-
----
-
-# Bastion host
-
-Bastion используется для SSH доступа.
-
-158.160.42.40
-
-
-Подключение:
-
-ssh -J ubuntu@158.160.42.40 ubuntu@web1.ru-central1.internal
-
-
----
-
-# Проверка балансировщика
-
-Публичный IP ALB:
-
-158.160.227.114
-
-
-Ответ:
-
-HTTP/1.1 200 OK
-server: ycalb
-
-
-Сайт обслуживается nginx на web1/web2.
-
----
-
-# Безопасность
-
-- web серверы **не имеют внешнего IP**
-- доступ только через bastion
-- входящий HTTP только через ALB
-- ключ `key.json` исключён из git
+- инфраструктура в Yandex Cloud
+- автоматизация конфигурации через Ansible
+- мониторинг через Zabbix
+- централизованное логирование через Elasticsearch и Kibana
+- балансировка нагрузки через Application Load Balancer
+- резервное копирование дисков через snapshot policy
 
 ---
 
 # Используемые технологии
 
-- Yandex Cloud
 - Terraform
 - Ansible
+- Yandex Cloud
+- Zabbix
+- Elasticsearch
+- Kibana
+- Filebeat
 - Nginx
+
+---
+
+# Архитектура инфраструктуры
+
+                 Internet
+                    │
+                    │
+          Application Load Balancer
+                    │
+         ┌──────────┴──────────┐
+         │                     │
+       web1                  web2
+         │                     │
+         └──────────┬──────────┘
+                    │
+              Elasticsearch
+                    │
+                  Kibana
+
+Monitoring
+│
+Zabbix
+
+Administration
+│
+Bastion host
+
+
+---
+
+# Сетевая архитектура
+
+Создан один VPC:
+
+diploma-vpc
+
+
+Подсети:
+
+| Подсеть | Назначение |
+|------|------|
+| subnet-a | web1, zabbix |
+| subnet-b | web2 |
+
+Публичные сервисы:
+
+- Bastion
+- Zabbix
+- Kibana
+- Application Load Balancer
+
+Приватные сервисы:
+
+- web1
+- web2
+- Elasticsearch
+
+---
+
+# Bastion host
+
+Bastion host используется как точка входа для администрирования инфраструктуры.
+
+На bastion host установлен Ansible.
+
+С bastion host выполняются playbook для конфигурации всех серверов в приватной сети.
+
+Это соответствует требованиям задания, где допускается запуск Ansible непосредственно с bastion host.
+
+---
+
+# Web инфраструктура
+
+Развернуты два web сервера:
+
+- web1
+- web2
+
+На серверах установлен nginx.
+
+Сайт разворачивается через Ansible.
+
+Проверка балансировки:
+
+curl http://158.160.227.114
+
+
+---
+
+# Мониторинг
+
+Развернут сервер мониторинга:
+
+Zabbix
+
+На всех VM установлен:
+
+zabbix-agent
+
+Настроен dashboard по принципу USE:
+
+- CPU utilization
+- Memory usage
+- Disk usage
+- Network traffic
+- HTTP availability
+
+---
+
+# Централизованное логирование
+
+Реализован стек логирования:
+
+Filebeat → Elasticsearch → Kibana
+
+Filebeat установлен на:
+
+- web1
+- web2
+
+Отправляются логи:
+
+/var/log/nginx/access.log
+/var/log/nginx/error.log
+
+
+Просмотр логов осуществляется через Kibana.
+
+---
+
+# Резервное копирование
+
+Настроено резервное копирование дисков виртуальных машин через Terraform.
+
+Используется ресурс:
+
+yandex_compute_snapshot_schedule
+
+
+Политика резервного копирования:
+
+- snapshot выполняется ежедневно
+- хранение snapshot — 7 дней
+
+---
+
+# Infrastructure as Code
+
+Terraform используется для создания:
+
+- VPC
+- подсетей
+- виртуальных машин
+- Application Load Balancer
+- NAT Gateway
+- snapshot schedule
+
+---
+
+# Configuration management
+
+Ansible используется для конфигурации серверов.
+
+Playbooks:
+
+| Playbook | Назначение |
+|------|------|
+| playbook.yml | установка nginx |
+| zabbix_server.yml | установка Zabbix server |
+| zabbix_agent.yml | установка Zabbix agent |
+| elasticsearch.yml | установка Elasticsearch |
+| kibana.yml | установка Kibana |
+| filebeat.yml | установка Filebeat |
+
+---
+
+# Структура проекта
+
+netology-diploma
+├ terraform
+│ ├ main.tf
+│ ├ provider.tf
+│ └ variables.tf
+│
+├ ansible
+│ ├ ansible.cfg
+│ ├ inventory.ini
+│ ├ playbook.yml
+│ ├ zabbix_server.yml
+│ ├ zabbix_agent.yml
+│ ├ elasticsearch.yml
+│ ├ kibana.yml
+│ └ filebeat.yml
+│
+├ site
+│└ index.html
+│
+└ README.md
+
+Terraform запускается с control VM.
+
+Ansible playbooks выполняются с bastion host.
+
+# Доступ к сервисам
+
+## Application Load Balancer
+
+```text
+http://158.160.227.114
+
+## Zabbix
+
+```text
+http://62.84.113.156/zabbix/
+
+## KIBANA
+
+```text
+http://62.84.113.156/zabbix/
+
+
+## Раздел “Bastion host”
+
+```markdown
+# Bastion host
+
+Bastion host используется как точка входа для администрирования инфраструктуры.
+
+Публичный IP bastion host:
+
+```text
+89.169.132.19
+
+## Elasticsearch
+
+Elasticsearch размещён в приватной подсети и не имеет публичного IP.
+
+Проверка Elasticsearch выполняется с bastion host:
+
+```bash
+curl http://elasticsearch.ru-central1.internal:9200
+
+---
+
+# Скриншоты
+
+## Application Load Balancer
+
+![ALB](screenshots/alb.png)
+
+## Zabbix Dashboard
+
+![Zabbix](screenshots/zabbix.png)
+
+## Kibana Logs
+
+![Kibana](screenshots/kibana.png)
+
+## Snapshot policy
+
+![Snapshots](screenshots/snapshots.png)
+

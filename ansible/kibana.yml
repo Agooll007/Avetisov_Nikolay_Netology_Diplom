@@ -1,0 +1,33 @@
+- name: Install Kibana
+  hosts: kibana
+  become: true
+
+  tasks:
+    - name: Install dependencies
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - wget
+        state: present
+        update_cache: true
+
+    - name: Install Kibana from local deb
+      ansible.builtin.apt:
+        deb: /home/ubuntu/kibana-8.12.2-amd64.deb
+
+    - name: Configure Kibana
+      ansible.builtin.copy:
+        dest: /etc/kibana/kibana.yml
+        content: |
+          server.port: 5601
+          server.host: "0.0.0.0"
+          elasticsearch.hosts: ["http://elasticsearch.ru-central1.internal:9200"]
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Restart and enable Kibana
+      ansible.builtin.systemd:
+        name: kibana
+        enabled: true
+        state: restarted

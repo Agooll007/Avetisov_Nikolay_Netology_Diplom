@@ -1,0 +1,95 @@
+- name: Install Zabbix server on zabbix VM
+  hosts: zabbix
+  become: true
+
+  vars:
+    zabbix_db_password: "zabbixpass"
+
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - wget
+          - gnupg
+          - ca-certificates
+          - lsb-release
+        state: present
+        update_cache: true
+
+    - name: Download Zabbix repo package
+      ansible.builtin.get_url:
+        url: https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.0+ubuntu22.04_all.deb
+        dest: /tmp/zabbix-release.deb
+        mode: '0644'
+
+    - name: Install Zabbix repo package
+      ansible.builtin.apt:
+        deb: /tmp/zabbix-release.deb
+
+    - name: Update apt cache after repo install
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install Zabbix server, frontend, agent and MariaDB
+      ansible.builtin.apt:
+        name:
+          - mariadb-server
+          - zabbix-server-mysql
+          - zabbix-frontend-php
+          - zabbix-apache-conf
+          - zabbix-sql-scripts
+          - zabbix-agent
+        state: present
+
+    - name: Start and enable MariaDB
+      ansible.builtin.systemd:
+        name: mariadb
+        enabled: true
+        state: started
+
+    - name: Create Zabbix database
+      ansible.builtin.shell: |
+        mysql -e "create database if not exists zabbix character set utf8mb4 collate utf8mb4_bin;"
+        mysql -e "create user if not exists zabbix@localhost identified by '{{ zabbix_db_password }}';"
+        mysql -e "grant all privileges on zabbix.* to zabbix@localhost;"
+        mysql -e "set global log_bin_trust_function_creators = 1;"
+      args:
+        executable: /bin/bash
+
+    - name: Import initial schema if server table absent
+      ansible.builtin.shell: |
+        if ! mysql zabbix -e "show tables like 'users';" | grep -q users; then
+          zcat /usr/share/zabbix-sql-scripts/mysql/server.sql.gz | mysql -uzabbix -p'{{ zabbix_db_password }}' zabbix
+        fi
+      args:
+        executable: /bin/bash
+
+    - name: Disable log_bin_trust_function_creators
+      ansible.builtin.shell: |
+        mysql -e "set global log_bin_trust_function_creators = 0;"
+      args:
+        executable: /bin/bash
+
+    - name: Configure DB password in zabbix_server.conf
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_server.conf
+        regexp: '^#?DBPassword='
+        line: "DBPassword={{ zabbix_db_password }}"
+
+    - name: Start and enable Zabbix server
+      ansible.builtin.systemd:
+        name: zabbix-server
+        enabled: true
+        state: started
+
+    - name: Start and enable Zabbix agent
+      ansible.builtin.systemd:
+        name: zabbix-agent
+        enabled: true
+        state: started
+
+    - name: Start and enable Apache
+      ansible.builtin.systemd:
+        name: apache2
+        enabled: true
+        state: started

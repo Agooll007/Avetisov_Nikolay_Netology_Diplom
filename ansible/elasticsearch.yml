@@ -1,0 +1,36 @@
+- name: Install Elasticsearch from local package
+  hosts: elasticsearch
+  become: true
+
+  tasks:
+    - name: Install Java and base packages
+      ansible.builtin.apt:
+        name:
+          - openjdk-17-jdk
+          - wget
+          - gnupg
+          - apt-transport-https
+        state: present
+        update_cache: true
+
+    - name: Install Elasticsearch from local deb
+      ansible.builtin.apt:
+        deb: /home/ubuntu/elasticsearch-8.12.2-amd64.deb
+
+    - name: Configure Elasticsearch network.host
+      ansible.builtin.lineinfile:
+        path: /etc/elasticsearch/elasticsearch.yml
+        regexp: '^#?network.host:'
+        line: 'network.host: 0.0.0.0'
+
+    - name: Configure Elasticsearch discovery.type
+      ansible.builtin.lineinfile:
+        path: /etc/elasticsearch/elasticsearch.yml
+        regexp: '^#?discovery.type:'
+        line: 'discovery.type: single-node'
+
+    - name: Start and enable Elasticsearch
+      ansible.builtin.systemd:
+        name: elasticsearch
+        enabled: true
+        state: started

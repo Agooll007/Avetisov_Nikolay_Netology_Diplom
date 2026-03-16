@@ -55,6 +55,13 @@ resource "yandex_vpc_security_group" "bastion_sg" {
     port           = 22
   }
 
+ingress {
+  protocol       = "TCP"
+  description    = "Zabbix agent access"
+  v4_cidr_blocks = ["10.10.1.0/24"]
+  port           = 10050
+}
+
   egress {
     protocol       = "ANY"
     description    = "Allow all outbound"
@@ -116,6 +123,47 @@ resource "yandex_vpc_security_group" "web_sg" {
     port              = 22
   }
 
+ingress {
+  protocol       = "TCP"
+  description    = "Zabbix agent access"
+  v4_cidr_blocks = ["10.10.1.0/24"]
+  port           = 10050
+}
+
+  egress {
+    protocol       = "ANY"
+    description    = "Allow all outbound"
+    v4_cidr_blocks = ["0.0.0.0/0"]
+    from_port      = 0
+    to_port        = 65535
+  }
+}
+
+resource "yandex_vpc_security_group" "zabbix_sg" {
+  name       = "zabbix-sg"
+  network_id = yandex_vpc_network.diploma_vpc.id
+
+  ingress {
+    protocol       = "TCP"
+    description    = "HTTP for Zabbix frontend"
+    v4_cidr_blocks = ["0.0.0.0/0"]
+    port           = 80
+  }
+
+  ingress {
+    protocol          = "TCP"
+    description       = "SSH from bastion SG"
+    security_group_id = yandex_vpc_security_group.bastion_sg.id
+    port              = 22
+  }
+
+  ingress {
+    protocol       = "TCP"
+    description    = "Zabbix server port from internal subnets"
+    v4_cidr_blocks = ["10.10.1.0/24", "10.10.2.0/24"]
+    port           = 10051
+  }
+
   egress {
     protocol       = "ANY"
     description    = "Allow all outbound"
@@ -133,9 +181,10 @@ resource "yandex_compute_instance" "bastion" {
   hostname    = "bastion"
   zone        = var.zone_1
   platform_id = "standard-v3"
+  allow_stopping_for_update = true
 
   scheduling_policy {
-    preemptible = true
+    preemptible = false
   }
 
   resources {
@@ -171,9 +220,11 @@ resource "yandex_compute_instance" "web1" {
   hostname    = "web1"
   zone        = var.zone_1
   platform_id = "standard-v3"
+  allow_stopping_for_update = true
+
 
   scheduling_policy {
-    preemptible = true
+    preemptible = false
   }
 
   resources {
@@ -208,9 +259,11 @@ resource "yandex_compute_instance" "web2" {
   hostname    = "web2"
   zone        = var.zone_2
   platform_id = "standard-v3"
+  allow_stopping_for_update = true
+
 
   scheduling_policy {
-    preemptible = true
+    preemptible = false
   }
 
   resources {
@@ -339,4 +392,214 @@ resource "yandex_alb_load_balancer" "web_alb" {
       }
     }
   }
+}
+
+# ----------------------------
+# ZABBIX SERVER
+# ----------------------------
+resource "yandex_compute_instance" "zabbix" {
+  name        = "zabbix"
+  hostname    = "zabbix"
+  zone        = var.zone_1
+  platform_id = "standard-v3"
+  allow_stopping_for_update = true
+
+
+  scheduling_policy {
+    preemptible = false
+  }
+
+  resources {
+    cores         = 2
+    memory        = 4
+    core_fraction = 20
+  }
+
+  boot_disk {
+    initialize_params {
+      image_id = data.yandex_compute_image.ubuntu.id
+      size     = 20
+      type     = "network-hdd"
+    }
+  }
+
+  network_interface {
+    subnet_id          = yandex_vpc_subnet.subnet_a.id
+    nat                = true
+    security_group_ids = [yandex_vpc_security_group.zabbix_sg.id]
+  }
+
+  metadata = {
+    ssh-keys = "ubuntu:${file("/home/avetisovnikolay/.ssh/bastion_id_rsa.pub")}"
+  }
+}
+
+# ----------------------------
+# ELASTICSEARCH SECURITY GROUP
+# ----------------------------
+resource "yandex_vpc_security_group" "elasticsearch_sg" {
+  name       = "elasticsearch-sg"
+  network_id = yandex_vpc_network.diploma_vpc.id
+
+  ingress {
+    protocol          = "TCP"
+    description       = "SSH from bastion SG"
+    security_group_id = yandex_vpc_security_group.bastion_sg.id
+    port              = 22
+  }
+
+  ingress {
+    protocol       = "TCP"
+    description    = "Elasticsearch from internal subnets"
+    v4_cidr_blocks = ["10.10.1.0/24", "10.10.2.0/24"]
+    port           = 9200
+  }
+
+  egress {
+    protocol       = "ANY"
+    description    = "Allow all outbound"
+    v4_cidr_blocks = ["0.0.0.0/0"]
+    from_port      = 0
+    to_port        = 65535
+  }
+}
+
+# ----------------------------
+# KIBANA SECURITY GROUP
+# ----------------------------
+resource "yandex_vpc_security_group" "kibana_sg" {
+  name       = "kibana-sg"
+  network_id = yandex_vpc_network.diploma_vpc.id
+
+  ingress {
+    protocol       = "TCP"
+    description    = "Kibana web access"
+    v4_cidr_blocks = ["0.0.0.0/0"]
+    port           = 5601
+  }
+
+  ingress {
+    protocol          = "TCP"
+    description       = "SSH from bastion SG"
+    security_group_id = yandex_vpc_security_group.bastion_sg.id
+    port              = 22
+  }
+
+  egress {
+    protocol       = "ANY"
+    description    = "Allow all outbound"
+    v4_cidr_blocks = ["0.0.0.0/0"]
+    from_port      = 0
+    to_port        = 65535
+  }
+}
+
+# ----------------------------
+# ELASTICSEARCH SERVER
+# ----------------------------
+resource "yandex_compute_instance" "elasticsearch" {
+  name        = "elasticsearch"
+  hostname    = "elasticsearch"
+  zone        = var.zone_1
+  platform_id = "standard-v3"
+  allow_stopping_for_update = true
+
+
+  scheduling_policy {
+    preemptible = false
+  }
+
+  resources {
+    cores         = 2
+    memory        = 4
+    core_fraction = 20
+  }
+
+  boot_disk {
+    initialize_params {
+      image_id = data.yandex_compute_image.ubuntu.id
+      size     = 20
+      type     = "network-hdd"
+    }
+  }
+
+  network_interface {
+    subnet_id          = yandex_vpc_subnet.subnet_a.id
+    security_group_ids = [yandex_vpc_security_group.elasticsearch_sg.id]
+  }
+
+  metadata = {
+    ssh-keys = "ubuntu:${file("/home/avetisovnikolay/.ssh/bastion_id_rsa.pub")}"
+  }
+}
+
+# ----------------------------
+# KIBANA SERVER
+# ----------------------------
+resource "yandex_compute_instance" "kibana" {
+  name        = "kibana"
+  hostname    = "kibana"
+  zone        = var.zone_1
+  platform_id = "standard-v3"
+  allow_stopping_for_update = true
+
+
+  scheduling_policy {
+    preemptible = false
+  }
+
+  resources {
+    cores         = 2
+    memory        = 2
+    core_fraction = 20
+  }
+
+  boot_disk {
+    initialize_params {
+      image_id = data.yandex_compute_image.ubuntu.id
+      size     = 20
+      type     = "network-hdd"
+    }
+  }
+
+  network_interface {
+    subnet_id          = yandex_vpc_subnet.subnet_a.id
+    nat                = true
+    security_group_ids = [yandex_vpc_security_group.kibana_sg.id]
+  }
+
+  metadata = {
+    ssh-keys = "ubuntu:${file("/home/avetisovnikolay/.ssh/bastion_id_rsa.pub")}"
+  }
+}
+
+# ----------------------------
+# SNAPSHOT SCHEDULE
+# ----------------------------
+resource "yandex_compute_snapshot_schedule" "daily_snapshots" {
+  name        = "daily-vm-snapshots"
+  description = "Daily snapshots for all diploma VMs"
+
+  schedule_policy {
+    expression = "0 2 * * *"
+  }
+
+  retention_period = "168h"
+
+  snapshot_spec {
+    description = "Daily snapshot created by Terraform"
+    labels = {
+      project = "netology-diploma"
+      type    = "daily-backup"
+    }
+  }
+
+  disk_ids = [
+    yandex_compute_instance.bastion.boot_disk[0].disk_id,
+    yandex_compute_instance.web1.boot_disk[0].disk_id,
+    yandex_compute_instance.web2.boot_disk[0].disk_id,
+    yandex_compute_instance.zabbix.boot_disk[0].disk_id,
+    yandex_compute_instance.elasticsearch.boot_disk[0].disk_id,
+    yandex_compute_instance.kibana.boot_disk[0].disk_id
+  ]
 }
