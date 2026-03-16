@@ -210,25 +210,25 @@ Playbooks:
 # Структура проекта
 
 netology-diploma
-├ terraform
-│ ├ main.tf
-│ ├ provider.tf
-│ └ variables.tf
+├── terraform
+│   ├── main.tf
+│   ├── provider.tf
+│   └── variables.tf
 │
-├ ansible
-│ ├ ansible.cfg
-│ ├ inventory.ini
-│ ├ playbook.yml
-│ ├ zabbix_server.yml
-│ ├ zabbix_agent.yml
-│ ├ elasticsearch.yml
-│ ├ kibana.yml
-│ └ filebeat.yml
+├── ansible
+│   ├── ansible.cfg
+│   ├── inventory.ini
+│   ├── playbook.yml
+│   ├── zabbix_server.yml
+│   ├── zabbix_agent.yml
+│   ├── elasticsearch.yml
+│   ├── kibana.yml
+│   └── filebeat.yml
 │
-├ site
-│└ index.html
+├── site
+│   └── index.html
 │
-└ README.md
+└── README.md
 
 Terraform запускается с control VM.
 
@@ -237,40 +237,25 @@ Ansible playbooks выполняются с bastion host.
 # Доступ к сервисам
 
 ## Application Load Balancer
-
-```text
 http://158.160.227.114
 
 ## Zabbix
-
-```text
 http://62.84.113.156/zabbix/
 
-## KIBANA
+## Kibana
+http://89.169.153.152:5601
 
-```text
-http://62.84.113.156/zabbix/
+## Bastion host
 
-
-## Раздел “Bastion host”
-
-```markdown
-# Bastion host
-
-Bastion host используется как точка входа для администрирования инфраструктуры.
-
-Публичный IP bastion host:
-
-```text
+Публичный IP:
 89.169.132.19
 
 ## Elasticsearch
 
 Elasticsearch размещён в приватной подсети и не имеет публичного IP.
 
-Проверка Elasticsearch выполняется с bastion host:
+Проверка выполняется с bastion host:
 
-```bash
 curl http://elasticsearch.ru-central1.internal:9200
 
 ---
